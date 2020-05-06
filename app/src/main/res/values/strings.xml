@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">TesseractOCR OpenCV</string>
+    <string name="click_choose_image_button_to_start">Click \'Choose image\' button to start</string>
+    <string name="dorecognize">doRecognize</string>
+    <string name="your_result_is_here">Your result is here...</string>
+    <string name="choose_image">CHOOSE IMAGE</string>
+
+</resources>
