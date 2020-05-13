@@ -1,9 +1,9 @@
 package com.example.tesseractocropencv;
 
-import android.annotation.SuppressLint;
+import android.Manifest;
 import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -18,37 +18,22 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.app.ActivityCompat;
+
 import com.googlecode.tesseract.android.TessBaseAPI;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
-import org.opencv.core.Core;
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfPoint;
-import org.opencv.core.MatOfPoint2f;
-import org.opencv.core.Point;
-import org.opencv.core.RotatedRect;
-import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-
-import static android.content.ContentValues.TAG;
 
 public class MainActivity extends Activity {
     private TessBaseAPI m_tess;
@@ -66,6 +51,7 @@ public class MainActivity extends Activity {
         this.requestWindowFeature(Window.FEATURE_NO_TITLE);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        grantWritePermission();
         chooseImage = findViewById(R.id.bt_choose_image);
         image = findViewById(R.id.iv_image);
         text = findViewById(R.id.tv_text);
@@ -112,73 +98,11 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "Canceled", Toast.LENGTH_SHORT).show();
             }
         }
-        Bitmap bitmapNew = ImageProcessing(bitmap);
+        Bitmap bitmapNew = ImageProcessing.imageProcessing(bitmap);
 //        bitmapNew = Deskewing(bitmapNew);
         doRecognize(bitmapNew);
         image.setImageBitmap(bitmapNew);
     }
-
-    public static Bitmap ImageProcessing(Bitmap input) {
-        Bitmap output = Bitmap.createBitmap(input.getWidth(),
-                input.getHeight(),
-                Bitmap.Config.ARGB_8888);
-        Mat source = new Mat();
-        Utils.bitmapToMat(input, source);
-        Imgproc.cvtColor(source, source, Imgproc.COLOR_RGB2GRAY);
-        Imgproc.GaussianBlur(source, source, new Size(3, 3), 0);
-        Imgproc.threshold(source,source,0,255,Imgproc.THRESH_OTSU);
-
-        //        Imgproc.adaptiveThreshold(source, source, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 5, 4);
-        Utils.matToBitmap(source, output);
-        return output;
-    }
-//    public Bitmap Deskewing(Bitmap input) {
-//        Bitmap output = Bitmap.createBitmap(input.getWidth(),
-//                input.getHeight(),
-//                Bitmap.Config.ARGB_8888);
-//        Mat source = new Mat();
-//        Core.bitwise_not(source, source);
-//        Mat element = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3, 3));
-//        //Find all white pixels
-//        Mat wLocMat = Mat.zeros(source.size(), source.type());
-//        Core.findNonZero(source, wLocMat);
-//
-//        //Create an empty Mat and pass it to the function
-//        MatOfPoint matOfPoint = new MatOfPoint(wLocMat);
-//
-//        //Translate MatOfPoint to MatOfPoint2f in order to use at a next step
-//        MatOfPoint2f mat2f = new MatOfPoint2f();
-//        matOfPoint.convertTo(mat2f, CvType.CV_32FC2);
-//
-//        //Get rotated rect of white pixels
-//        RotatedRect rotatedRect = Imgproc.minAreaRect(mat2f);
-//
-//        Point[] vertices = new Point[4];
-//        rotatedRect.points(vertices);
-//        List<MatOfPoint> boxContours = new ArrayList<>();
-//        boxContours.add(new MatOfPoint(vertices));
-//        Imgproc.drawContours(source, boxContours, 0, new Scalar(128, 128, 128), -1);
-//
-//        double resultAngle = rotatedRect.angle;
-//        if (rotatedRect.size.width > rotatedRect.size.height) {
-//            rotatedRect.angle += 90.f;
-//        }
-//
-//        //Or
-//        //rotatedRect.angle = rotatedRect.angle < -45 ? rotatedRect.angle + 90.f : rotatedRect.angle;
-//
-//        Mat result = deskew(source, resultAngle);
-//        Utils.matToBitmap(result, output);
-//        return output;
-//    }
-//    public Mat deskew(Mat src, double angle) {
-//        Point center = new Point(src.width()/2, src.height()/2);
-//        Mat rotImage = Imgproc.getRotationMatrix2D(center, angle, 1.0);
-//        //1.0 means 100 % scale
-//        Size size = new Size(src.width(), src.height());
-//        Imgproc.warpAffine(src, src, rotImage, size, Imgproc.INTER_LINEAR + Imgproc.CV_WARP_FILL_OUTLIERS);
-//        return src;
-//    }
     public void doRecognize(Bitmap bitmap) {
         if (m_tess == null) {
             return;
@@ -187,52 +111,32 @@ public class MainActivity extends Activity {
             m_tess.setImage(bitmap);
             String result = m_tess.getUTF8Text();
             text.setText(result);
-            writeData(result);
+            WriteFile.writeFile(result);
         } catch (Exception e) {
             // Do what you like here...
         }
     }
-    public void writeData(String data) {
-        checkExternalMedia();
-        File root = android.os.Environment.getExternalStorageDirectory();
-        text.append("\nExternal file system root: "+root);
-        File dir = new File (root.getAbsolutePath() + "/download");
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-        File file = new File(dir, "myData.txt");
 
-        try {
-            FileOutputStream f = new FileOutputStream(file);
-            PrintWriter pw = new PrintWriter(f);
-            pw.print(data);
-            pw.flush();
-            pw.close();
-            f.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        text.append("\n\nFile written to "+file);
-        }
+    private void grantWritePermission(){
+        ActivityCompat.requestPermissions(MainActivity.this,
+                new String[]{Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                1);
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case 1: {
+                if (grantResults.length > 0
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(MainActivity.this, "READ_EXTERNAL_STORAGE & WRITE_EXTERNAL_STORAGE  allowed !!!", Toast.LENGTH_SHORT).show();
 
-    private void checkExternalMedia() {
-        boolean mExternalStorageAvailable = false;
-        boolean mExternalStorageWriteable = false;
-        String state = Environment.getExternalStorageState();
-
-        if (Environment.MEDIA_MOUNTED.equals(state)) {
-            // Can read and write the media
-            mExternalStorageAvailable = mExternalStorageWriteable = true;
-        } else if (Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
-            // Can only read the media
-            mExternalStorageAvailable = true;
-            mExternalStorageWriteable = false;
-        } else {
-            // Can't read or write
-            mExternalStorageAvailable = mExternalStorageWriteable = false;
+                } else {
+                    Toast.makeText(MainActivity.this, "READ_EXTERNAL_STORAGE & WRITE_EXTERNAL_STORAGEdenied !!!", Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
         }
-        text.append("\n\nExternal Media: readable="
-                +mExternalStorageAvailable+" writable="+mExternalStorageWriteable);
     }
 
 
